@@ -1,0 +1,35 @@
+name: Build and release Nexo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and package
+        run: |
+          node --check main.js
+          node --check features.js
+          npx electron-packager . Nexo --platform=darwin --arch=arm64 --out=dist --overwrite --app-bundle-id=local.nexo.desktop --app-version="$(node -p 'require("./package.json").version')" --asar --extend-info=extend.plist --ignore='(dist|.*\.cjs$)'
+          cp Nexo.icns dist/Nexo-darwin-arm64/Nexo.app/Contents/Resources/Nexo.icns
+          plutil -replace CFBundleIconFile -string Nexo.icns dist/Nexo-darwin-arm64/Nexo.app/Contents/Info.plist
+          codesign --force --deep --sign - dist/Nexo-darwin-arm64/Nexo.app
+          codesign --verify --deep --strict dist/Nexo-darwin-arm64/Nexo.app
+          ditto -c -k --sequesterRsrc --keepParent dist/Nexo-darwin-arm64/Nexo.app Nexo-arm64.zip
+          node -e 'const fs=require("fs"),c=require("crypto");fs.writeFileSync("latest.json",JSON.stringify({version:require("./package.json").version,sha256:c.createHash("sha256").update(fs.readFileSync("Nexo-arm64.zip")).digest("hex")}))'
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          gh release view "v$version" || gh release create "v$version" --title "Nexo $version" --notes "Aplicación para macOS Apple Silicon. Firma local ad hoc."
+          gh release upload "v$version" Nexo-arm64.zip latest.json --clobber

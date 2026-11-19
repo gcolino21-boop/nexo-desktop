@@ -1,0 +1,1 @@
+const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('nexo',{command:(cmd,p)=>ipcRenderer.invoke('command',cmd,p),subscribe:fn=>ipcRenderer.on('state',(_,data)=>fn(data))});
