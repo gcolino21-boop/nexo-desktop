@@ -1,0 +1,6 @@
+const assert=require('node:assert/strict');
+const {quietNow,validateSchedule,exportConfiguration,importConfiguration}=require('./reliability');
+const schedule={enabled:true,start:'22:00',end:'08:00',days:[1]};
+assert(quietNow(schedule,new Date(2026,10,23,23,0)));assert(quietNow(schedule,new Date(2026,10,24,7,59)));assert(!quietNow(schedule,new Date(2026,10,24,8,0)));assert(!quietNow(schedule,new Date(2026,10,24,23,0)));assert(!quietNow(schedule,new Date(2026,10,23,7,0)));
+assert.throws(()=>validateSchedule({...schedule,start:'25:00'}));
+const config={lockHash:'SECRET',settings:{restore:true,quietSchedule:schedule},accounts:[{id:'local',name:'Correo',url:'https://example.com/',icon:'C',color:'#123456'}]};const exported=exportConfiguration(config);assert(!JSON.stringify(exported).includes('SECRET'));assert(!JSON.stringify(exported).includes('local'));const imported=importConfiguration(exported,config.accounts);assert.equal(imported.accounts[0].id,'local');exported.accounts[0].id='untrusted';const fresh=importConfiguration(exported,[]);assert.notEqual(fresh.accounts[0].id,'untrusted');exported.accounts[0].url='file:///tmp/a';assert.throws(()=>importConfiguration(exported,[]));console.log('PASS midnight schedule and boundaries, validation, secret-free export, local partition reuse, imported ID rejection, unsafe URL rejection');
